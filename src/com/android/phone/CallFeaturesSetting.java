@@ -147,8 +147,13 @@ public class CallFeaturesSetting extends PreferenceActivity
                         new Dialog.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
-                                startActivity(new Intent(mPhone.getContext(),
-                                        com.android.phone.MobileNetworkSettings.class));
+                                if (PhoneUtils.isNetworkSettingsApkAvailable(mPhone.getContext())) {
+                                    startActivity(new Intent(
+                                            "codeaurora.intent.action.MOBILE_NETWORK_SETTINGS"));
+                                } else {
+                                    startActivity(new Intent(mPhone.getContext(),
+                                            com.android.phone.MobileNetworkSettings.class));
+                                }
                             }
                         };
                 builder.setMessage(getResources().getString(
@@ -300,7 +305,10 @@ public class CallFeaturesSetting extends PreferenceActivity
                                     new Preference.OnPreferenceClickListener() {
                                         @Override
                                         public boolean onPreferenceClick(Preference preference) {
-                                            Intent intent = new Intent(CdmaCallOptions.CALL_FORWARD_INTENT);
+                                            Intent intent = mPhone.isUtEnabled() ?
+                                                mSubscriptionInfoHelper
+                                                    .getIntent(CallForwardType.class)
+                                                : new Intent(CdmaCallOptions.CALL_FORWARD_INTENT);
                                             intent.putExtra(PhoneConstants.SUBSCRIPTION_KEY, mPhone.getSubId());
                                             startActivity(intent);
                                             return true;
@@ -337,7 +345,8 @@ public class CallFeaturesSetting extends PreferenceActivity
                 ImsManager.isVtProvisionedOnDevice(mPhone.getContext()) &&
                 (carrierConfig.getBoolean(
                         CarrierConfigManager.KEY_IGNORE_DATA_ENABLED_CHANGED_FOR_VIDEO_CALLS)
-                        || mPhone.mDcTracker.isDataEnabled(true))) {
+                        || mPhone.mDcTracker.isDataEnabled(true)) &&
+                        (mPhone.getImsPhone() != null)) {
             boolean currentValue =
                     ImsManager.isEnhanced4gLteModeSettingEnabledByUser(mPhone.getContext())
                     ? PhoneGlobals.getInstance().phoneMgr.isVideoCallingEnabled(

@@ -237,10 +237,6 @@ public class VoicemailSettingsActivity extends PreferenceActivity
         mOmtpVvmCarrierConfigHelper = new OmtpVvmCarrierConfigHelper(
                 mPhone.getContext(), mPhone.getSubId());
         addPreferencesFromResource(R.xml.voicemail_settings);
-        if (isInMultiWindowMode()) {
-            finish();
-            return;
-        }
     }
 
     @Override
@@ -279,12 +275,11 @@ public class VoicemailSettingsActivity extends PreferenceActivity
                 getResources().getString(R.string.voicemail_notification_vibrate_key));
         mVoicemailNotificationVibrate.setOnPreferenceChangeListener(this);
 
-        mVoicemailVisualVoicemail = (SwitchPreference) findPreference(
+        mVoicemailVisualVoicemail = (SwitchPreference) prefSet.findPreference(
                 getResources().getString(R.string.voicemail_visual_voicemail_key));
 
-        mVoicemailChangePinPreference = findPreference(
+        mVoicemailChangePinPreference = prefSet.findPreference(
                 getResources().getString(R.string.voicemail_change_pin_key));
-
         if (mVoicemailChangePinPreference != null) {
             Intent changePinIntent = new Intent(new Intent(this, VoicemailChangePinActivity.class));
             changePinIntent.putExtra(VoicemailChangePinActivity.EXTRA_PHONE_ACCOUNT_HANDLE,
@@ -296,7 +291,6 @@ public class VoicemailSettingsActivity extends PreferenceActivity
                 mVoicemailChangePinPreference.setTitle(R.string.voicemail_change_pin_dialog_title);
             }
         }
-
         if (mVoicemailVisualVoicemail != null) {
             if (mOmtpVvmCarrierConfigHelper.isValid()) {
                 mVoicemailVisualVoicemail.setOnPreferenceChangeListener(this);

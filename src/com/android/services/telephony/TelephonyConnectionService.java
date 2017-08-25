@@ -62,6 +62,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -109,6 +110,14 @@ public class TelephonyConnectionService extends ConnectionService {
                 TelephonyConnection connection, PhoneAccountHandle redialPhoneAccount,
                         int phoneId) {
             Log.d(this,"onEmergencyRedial");
+
+            if (mRequest == null) {
+                Log.w(this, "onEmergencyRedial, Possible Phantom EM Call redial");
+                connection.setDisconnected(DisconnectCauseUtil.toTelecomDisconnectCause(
+                        android.telephony.DisconnectCause.OUTGOING_CANCELED,
+                        "Initial EM Call request is null"));
+                return;
+            }
             String number = connection.getAddress().getSchemeSpecificPart();
             Phone phone = PhoneFactory.getPhone(phoneId);
 
@@ -147,6 +156,17 @@ public class TelephonyConnectionService extends ConnectionService {
             retryOutgoingOriginalConnection(c);
         }
     };
+
+    private List<ConnectionRemovedListener> mConnectionRemovedListeners =
+            new CopyOnWriteArrayList<>();
+
+    /**
+     * A listener to be invoked whenever a TelephonyConnection is removed
+     * from connection service.
+     */
+    public interface ConnectionRemovedListener {
+        public void onConnectionRemoved(TelephonyConnection conn);
+    }
 
     @Override
     public void onCreate() {
@@ -960,6 +980,7 @@ public class TelephonyConnectionService extends ConnectionService {
             returnConnection.setVideoPauseSupported(
                     TelecomAccountRegistry.getInstance(this).isVideoPauseSupported(
                             phoneAccountHandle));
+            addConnectionRemovedListener(returnConnection);
         }
         return returnConnection;
     }
@@ -982,9 +1003,16 @@ public class TelephonyConnectionService extends ConnectionService {
         if (isEmergency) {
             return PhoneFactory.getPhone(PhoneUtils.getPhoneIdForECall());
         }
+        int subId = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
+        try {
+            subId = Integer.parseInt(accountHandle.getId());
+        } catch (NumberFormatException ex) {
+            Log.d(this, "getPhoneForAccount for subId: " + accountHandle.getId());
+            subId = PhoneUtils.getSubIdForPhoneAccountHandle(accountHandle);
+        }
 
-        int subId = PhoneUtils.getSubIdForPhoneAccountHandle(accountHandle);
-        if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+        if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID  &&
+                 SubscriptionController.getInstance().isActiveSubId(subId)) {
             int phoneId = SubscriptionController.getInstance().getPhoneId(subId);
             chosenPhone = PhoneFactory.getPhone(phoneId);
         }
@@ -1127,6 +1155,8 @@ public class TelephonyConnectionService extends ConnectionService {
         if (connection instanceof TelephonyConnection) {
             TelephonyConnection telephonyConnection = (TelephonyConnection) connection;
             telephonyConnection.removeTelephonyConnectionListener(mTelephonyConnectionListener);
+            removeConnectionRemovedListener((TelephonyConnection)connection);
+            fireOnConnectionRemoved((TelephonyConnection)connection);
         }
     }
 
@@ -1166,6 +1196,22 @@ public class TelephonyConnectionService extends ConnectionService {
             }
             Log.d(this, "Removing connection from IMS conference controller: " + connection);
             mImsConferenceController.remove(connection);
+        }
+    }
+
+    private void addConnectionRemovedListener(ConnectionRemovedListener l) {
+        mConnectionRemovedListeners.add(l);
+    }
+
+    private void removeConnectionRemovedListener(ConnectionRemovedListener l) {
+        if (l != null) {
+            mConnectionRemovedListeners.remove(l);
+        }
+    }
+
+    private void fireOnConnectionRemoved(TelephonyConnection conn) {
+        for (ConnectionRemovedListener l : mConnectionRemovedListeners) {
+            l.onConnectionRemoved(conn);
         }
     }
 

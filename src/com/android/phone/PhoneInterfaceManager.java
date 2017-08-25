@@ -301,6 +301,11 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
                     request = (MainThreadRequest) msg.obj;
                     int answer_subId = request.subId;
                     answerRingingCallInternal(answer_subId);
+                    request.result = ""; // dummy result for notifying the waiting thread
+                    // Wake up the requesting thread
+                    synchronized (request) {
+                        request.notifyAll();
+                    }
                     break;
 
                 case CMD_END_CALL:
@@ -1041,7 +1046,8 @@ public class PhoneInterfaceManager extends ITelephony.Stub {
 
     private UiccCard getUiccCardUsingSubId(int subId) {
         Phone phone = getPhone(subId);
-        return UiccController.getInstance().getUiccCard(phone.getPhoneId());
+        return phone == null ? null :
+                UiccController.getInstance().getUiccCard(phone.getPhoneId());
     }
 
     //
